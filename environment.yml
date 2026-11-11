@@ -1,0 +1,34 @@
+name: routing_model
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12
+
+  # --- required by the model ---
+  - numpy>=1.24
+  - scipy>=1.10          # sparse matrices, ndimage, spsolve, connected_components
+  - scikit-image>=0.19   # morphological reconstruction (fillsinks / imfill)
+  - openpyxl>=3.1        # reading the .xlsx met data
+
+  # --- data handling ---
+  - pandas
+  - xarray
+  - netcdf4              # NetCDF output via xarray
+  - rioxarray            # xarray + rasterio (georeferenced grids)
+
+  # --- geospatial ---
+  - rasterio             # read/write .asc and GeoTIFF
+  - gdal
+  - pyproj
+  - shapely
+  - geopandas
+  - cartopy
+
+  # --- plotting ---
+  - matplotlib
+  - cmocean              # perceptually uniform colour maps (ocean/ice data)
+
+  # --- working environment ---
+  - jupyterlab
+  - ipykernel
