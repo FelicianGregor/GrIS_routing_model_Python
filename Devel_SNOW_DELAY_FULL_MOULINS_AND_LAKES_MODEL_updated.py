@@ -118,9 +118,9 @@ pmax = 0.6              # pmax factor for formation of superimposed ice after Re
 # --- MATLAB lines 53-73 ---------------------------------------------------
 # meteorological data
 metdata = xlsread('input_data/Lev_met_input09.xlsx', 'A2:C100')  # reads met data
-JD = metdata[:, 0]        # reads julian days
-temp = metdata[:, 1]      # reads average temperature data (degC)
-precip = metdata[:, 2]    # reads daily total precipitation data (mm)
+JD = metdata[:, 0]        # julian days
+temp = metdata[:, 1]      # average temperature data (degC)
+precip = metdata[:, 2]    # daily total precipitation data (mm)
 
 # ice surface elevation data (m)
 dem, X, Y, _ = rasterread('input_data/SP_DEM_LEV.asc')   # reads DEM ascii
@@ -174,6 +174,11 @@ for a in range(len(surf_elev)):
     pmax_snow_depth[a] = snow_depth[a] * pmax
 
 del grad_elev   # clear grad_elev
+
+###############################
+# potentail changes: 
+# use a simple linear regression to predict the snow depth at any point, in second step use rule to make snow depth 0 when elevation lower than station
+################################
 
 # **************************************************************************
 
@@ -257,9 +262,8 @@ melt_xyz = np.zeros((SIZ, 3))
 
 # loops through days   (i is 1-BASED, as in MATLAB)
 for i in range(1, len(temp) + 1):
-    # print only first and last step (assuming there are 100)
-    if i == 1 or i == 99:
-        print('calculating melt, fracture depth and lake filling/drainage for day ' + str(i))
+    # print the day we are at
+    print('calculating melt, fracture depth and lake filling/drainage for day ' + str(i))
 
     # loops through each DEM cell
     for j in range(len(surf_elev)):
