@@ -1,0 +1,4 @@
+# Python / pytest / Jupyter caches
+__pycache__/
+.pytest_cache/
+.ipynb_checkpoints/

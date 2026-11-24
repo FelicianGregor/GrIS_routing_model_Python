@@ -29,6 +29,9 @@ dependencies:
   - matplotlib
   - cmocean              # perceptually uniform colour maps (ocean/ice data)
 
+  # --- testing ---
+  - pytest
+
   # --- working environment ---
   - jupyterlab
   - ipykernel

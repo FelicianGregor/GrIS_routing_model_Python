@@ -80,7 +80,25 @@ def seed_routeflats(seed):
     _RNG = np.random.default_rng(seed)
 
 
+# TEST-ONLY switch (added for validation against MATLAB; default False = the
+# original random behaviour). When True, randperm(8) is replaced by the fixed
+# order 0..7 (MATLAB 1:8). The SAME change must be made in a copy of
+# routeflats.m (done temporarily by tests/matlab/make_matlab_references.m) so that both
+# implementations become deterministic and can be compared value by value.
+# This changes which of several equally valid downstream neighbours is chosen
+# at flat perimeters; it is NOT meant for scientific runs.
+_FIXED_ORDER = False
+
+
+def set_fixed_neighbour_order(flag):
+    """Enable/disable the deterministic neighbour order (test-only)."""
+    global _FIXED_ORDER
+    _FIXED_ORDER = bool(flag)
+
+
 def _randperm8():
+    if _FIXED_ORDER:
+        return np.arange(8)
     return _RNG.permutation(8)
 
 

@@ -59,6 +59,25 @@ from rasterread import rasterread
 from fillsinks import fillsinks
 from flowdir import flowdir
 from flowaccwithlakes import flowaccwithlakes
+import routeflats as _routeflats_module
+
+# --- TESTING / VALIDATION SWITCHES (added; defaults = original behaviour) ---
+# Can be pre-set via runpy.run_path(..., init_globals={...}) like Kic/TS.
+#   SAVE_FULL_WORKSPACE : also write ALL workspace variables (MATLAB names) to
+#                         results/workspace_routing_model_python.mat for a
+#                         variable-by-variable comparison with MATLAB.
+#                         Output only; does not change any result.
+#   ROUTEFLATS_FIXED_ORDER : TEST-ONLY deterministic neighbour order in
+#                         routeflats (randperm(8) -> 1:8). Changes the flat
+#                         routing; use only together with the matching MATLAB
+#                         reference (tests/matlab/make_matlab_references.m).
+#   ROUTEFLATS_SEED     : seed for the random flat routing (default 0, which
+#                         equals the previous behaviour of routeflats.py).
+if 'SAVE_FULL_WORKSPACE' not in globals(): SAVE_FULL_WORKSPACE = False
+if 'ROUTEFLATS_FIXED_ORDER' not in globals(): ROUTEFLATS_FIXED_ORDER = False
+if 'ROUTEFLATS_SEED' not in globals(): ROUTEFLATS_SEED = 0
+_routeflats_module.set_fixed_neighbour_order(ROUTEFLATS_FIXED_ORDER)
+_routeflats_module.seed_routeflats(ROUTEFLATS_SEED)
 
 # This model predicts full ice-thickness crevasses, lake filling and drainage
 # and quantifies meltwater delivery to the bed. Crevasses and lakes transfer
@@ -342,11 +361,11 @@ for i in range(1, len(temp) + 1):
 
         # calculates daily melt total, refreezing and meltwater transit delay in snowpack
         # (MATLAB lines 272-329)
-        if i == 1:
-            if snow_total[j, i-1] == 0:
-                cumu_melt[j, i-1] = melt_start + (pos_temp[j] * DDF_i)        # apply DDF for ice when no snow cover
+        if i == 1: #this is the first day
+            if snow_total[j, i-1] == 0: # if the snow cover on first day is zero, then degree day factor of ice is used, not for snow
+                cumu_melt[j, i-1] = melt_start + (pos_temp[j] * DDF_i)        # apply DDF for ice when no snow cover, and calculate the total melt for the snowpack by adding the initial wetness of the snow (meltwater) to the DDF for ice times Temperature
                 pmax_filling[j, i-1] = pmax_snow_depth[j] - cumu_melt[j, i-1]  # start to fill up pmax space in snowpack with melt
-                delay_timer[j, i-1] = 0                                        # no delay in meltwater transit time when cell has no snow cover
+                delay_timer[j, i-1] = 0                                        # no delay in meltwater transit time when cell has no snow cover --> so over ice no delay
                 daily_melt[j] = cumu_melt[j, i-1]
                 daily_melt_inc[j] = daily_melt[j]                              # daily melt including that lost as superimposed ice/refreezing and in the meltwater routing delay
                 daily_melt_inc_days[j, i-1] = daily_melt[j]                    # daily melt stored over full 99 days for later use in control simulation
@@ -400,7 +419,7 @@ for i in range(1, len(temp) + 1):
                     daily_melt_inc_days[j, i-1] = cumu_melt[j, i-1] - cumu_melt[j, i-2]  # daily melt stored over full 99 days for later use in control simulation
 
     # --- MATLAB lines 333-343 ---------------------------------------------
-    # creates an xyz file of E, N and melt for each day
+    # creates an xyz file of E, N and melt for each day, before this, the melt was only a list/vector, but the routing algorithm needs spatial information
     melt_xyz[:, 0] = eastings
     melt_xyz[:, 1] = northings
     melt_xyz[:, 2] = daily_melt
@@ -476,8 +495,8 @@ for i in range(1, len(temp) + 1):
             # this is solved when B_lake is suffient for Ki > Kic for depth equal to ice thickness
             Ki_lake[I] = (1.12 * (Rxx[I] * (np.sqrt(np.pi * dmax[I])))) - (0.683 * (Pi * (g * (dmax[I] ** 1.5)))) + (0.683 * (Pw * (g * (B_lake[I] ** 1.5))))
 
-            if i == 1:
-                # no drainage if Ki not greater than Kic on first day
+            if i == 1: # this is day 1
+                # no drainage if Ki (stress intensitiy factor) smaller than Kic (fracture toughness) on first day
                 if Ki_lake[I] < Kic:
                     crevasse_depth[I] = 0
                     drained_lakes[I, i-1] = 0
@@ -485,7 +504,7 @@ for i in range(1, len(temp) + 1):
                     melt_to_bed[I, i-1] = 0
                     RR[I] = Rxx[I] < TS
                 # accumulated lake fill transfered to bed and lake cell added to runoff ratio grid if lake drains
-                elif Ki_lake[I] >= Kic:
+                elif Ki_lake[I] >= Kic: # if the stress intensity factor is larger than the fracture toughness --> drains
                     crevasse_depth[I] = dmax[I]
                     drained_lakes[I, i-1] = 1
                     lake_drainage_events[I, i-1] = 1
@@ -531,7 +550,7 @@ for i in range(1, len(temp) + 1):
 
             # calculates crevasse depths only if tensile stress >= tensile
             # strength (initial surface fracture present)
-            if Rxx[I] >= TS:
+            if Rxx[I] >= TS: # initiate a crevasse when stress is higher than the tensile strength (what the ice can withstand)
 
                 d_start = 1e-7       # initial fracture depth value above zero to ensure initiation
                 d_increment = 1      # increment of crevasse depth
@@ -539,7 +558,7 @@ for i in range(1, len(temp) + 1):
                 Ki = 1 + Kic         # starts at a value greater than Kic so while loop is run at least once
 
                 # continues iterating through values of depth (thus, crevasse
-                # propagates as long as Ki > fracture toughness)until Ki is
+                # propagates as long as Ki (stress intensity factor) > fracture toughness)until Ki is
                 # equal to or less than the fracture toughness
                 while Ki > Kic:
 
@@ -710,6 +729,24 @@ ws = {"drainage_xyz": drainage_xyz,
 with open("results/results_routing_model.pkl", "wb") as f:
     pickle.dump(ws, f)
 
+# Optional: full workspace for comparison with the MATLAB .mat (output only).
+# Variables keep their MATLAB names. Loop counters (i, j, I, a, loop) are
+# 1-based in MATLAB but 0-based here where noted in the code; the comparison
+# tool skips them.
+if SAVE_FULL_WORKSPACE:
+    import scipy.io as _sio
+    import scipy.sparse as _sp
+    _full = {}
+    for _name, _val in list(globals().items()):
+        if _name.startswith('_') or _name in ('ws', 'f'):
+            continue
+        if isinstance(_val, (np.ndarray, np.generic, float, int, bool)) or _sp.issparse(_val):
+            _full[_name] = _val
+        elif isinstance(_val, tuple) and all(isinstance(_v, (int, np.integer)) for _v in _val):
+            _full[_name] = np.array(_val, dtype=float)    # e.g. SIZE, siz
+    _full['ROUTEFLATS_FIXED_ORDER'] = bool(ROUTEFLATS_FIXED_ORDER)
+    _sio.savemat('results/workspace_routing_model_python.mat', _full,
+                 do_compression=True, oned_as='column')
 
 # ##########################################################################
 # ##########################################################################
