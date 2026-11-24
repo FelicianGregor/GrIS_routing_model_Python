@@ -1,3 +1,6 @@
+# output of model runs
+results/
+
 # Python / pytest / Jupyter caches
 __pycache__/
 .pytest_cache/

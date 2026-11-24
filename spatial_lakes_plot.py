@@ -44,7 +44,6 @@ Differences that cannot be made identical (flagged):
   * Plot styling (fonts, default sizes) follows Matplotlib, not MATLAB.
 """
 import pickle  # for the results to be loaded
-
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Patch
