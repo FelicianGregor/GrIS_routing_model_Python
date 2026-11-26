@@ -10,6 +10,10 @@ Instead of the Leverett data, the model gets a small made-up glacier
 
 Each run must finish and give sensible results (no NaN, no negative water,
 moulins only on the ice, not more water at the bed than was produced).
+
+For every surface a figure is saved to results/synthetic_dem_tests/<name>.png
+showing the DEM, the lakes, the crevasses that drained to the bed (last day)
+and the drainage network (flow directions of the last day).
 The met data is the real Lev_met_input09.xlsx. On these surfaces crevasses,
 moulins and (for 'flat_and_lake') lake drainage all occur, so every part of
 the model is used.
@@ -21,10 +25,16 @@ import os
 import shutil
 import tempfile
 
+import matplotlib
+matplotlib.use('Agg')                 # save figures to files, do not open windows
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+import scipy.sparse as sp
 
-from helpers import INPUT_DATA, run_model
+from helpers import INPUT_DATA, REPO, run_model
+
+FIGURE_FOLDER = os.path.join(REPO, 'results', 'synthetic_dem_tests')
 
 N_ROWS, N_COLS = 20, 30          # grid size
 CELL = 500                       # cell size (m); the model assumes 500 m cells
@@ -79,6 +89,59 @@ def make_inputs(folder, kind):
     shutil.copy(os.path.join(INPUT_DATA, 'Lev_met_input09.xlsx'), folder)
 
 
+def plot_run(results, kind):
+    """Save a map of one synthetic run: DEM, lakes, crevasses that drained
+    to the bed, and the drainage network."""
+    X = results['X'] / 1000.0                       # cell centres in km
+    Y = results['Y'] / 1000.0
+    shape = X.shape
+    dem = results['DEM'].reshape(shape, order='F')  # elevation as read (NaN = off-ice)
+
+    # last day of the run (column -1), converted from vectors to grids
+    lakes = results['LV'] > 0                                          # lake cells
+    drained_lake = results['drained_lakes'][:, -1].reshape(shape, order='F') == 1
+    crevasse_to_bed = results['full_crevasses'][:, -1].reshape(shape, order='F') == 1
+    crevasse_to_bed = crevasse_to_bed & ~np.isnan(dem)                 # on the ice only
+
+    fig, ax = plt.subplots(figsize=(10, 7))
+
+    # 1) DEM
+    image = ax.pcolormesh(X, Y, dem, cmap='terrain', shading='nearest')
+    fig.colorbar(image, ax=ax, label='surface elevation (m)')
+
+    # 2) drainage network: a line from each cell to the cell it drains into
+    #    (Ms = flow directions of the last day); thicker = more water (As)
+    Ms = sp.csr_matrix(results['Ms'])
+    giver, receiver = Ms.nonzero()
+    x = X.ravel(order='F')
+    y = Y.ravel(order='F')
+    water = results['As'].ravel(order='F')[giver]
+    width = 0.3 + 2.5 * np.log10(1 + water) / np.log10(1 + water.max())
+    for g, r, w in zip(giver, receiver, width):
+        ax.plot([x[g], x[r]], [y[g], y[r]], color='navy', linewidth=w)
+
+    # 3) crevasses that drained to the bed, and lakes
+    ax.scatter(X[crevasse_to_bed], Y[crevasse_to_bed], marker='x', color='red', s=25,
+               label='crevasse drained to the bed')
+    ax.scatter(X[lakes & ~drained_lake], Y[lakes & ~drained_lake], marker='s', s=70,
+               facecolors='none', edgecolors='blue', linewidths=1.5, label='lake (not drained)')
+    ax.scatter(X[drained_lake], Y[drained_lake], marker='s', s=70, color='cyan',
+               edgecolors='blue', label='lake (drained)')
+    ax.plot([], [], color='navy', label='drainage network (thicker = more water)')
+
+    ax.set_title(f"Synthetic DEM '{kind}' - last day of the run\n"
+                 f"{int(crevasse_to_bed.sum())} crevasses drained to the bed, "
+                 f"{int(drained_lake.sum())} of {int(lakes.sum())} lake cells drained")
+    ax.set_xlabel('Easting (km)')
+    ax.set_ylabel('Northing (km)')
+    ax.set_aspect('equal')
+    ax.legend(loc='upper left', bbox_to_anchor=(1.25, 1), fontsize=9)
+
+    os.makedirs(FIGURE_FOLDER, exist_ok=True)
+    fig.savefig(os.path.join(FIGURE_FOLDER, kind + '.png'), dpi=120, bbox_inches='tight')
+    plt.close(fig)
+
+
 @pytest.mark.parametrize('kind', ['ramp', 'flat_and_lake', 'rough'])
 def test_model_runs_on_artificial_glacier(kind):
     folder = os.path.join(tempfile.mkdtemp(prefix='synthetic_'), 'input_data')
@@ -87,6 +150,8 @@ def test_model_runs_on_artificial_glacier(kind):
         results = run_model(input_folder=folder)
     finally:
         shutil.rmtree(os.path.dirname(folder), ignore_errors=True)
+
+    plot_run(results, kind)                       # figure in results/synthetic_dem_tests/
 
     melt_to_bed = results['melt_to_bed']          # cells x days (mm w.e.)
     off_ice = results['ice_limits']               # True = cell is off the ice

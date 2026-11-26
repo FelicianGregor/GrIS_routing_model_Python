@@ -20,7 +20,7 @@ messages, `Ctrl + C` = stop. The last line shows the summary, e.g. `4 passed`.
 |---|---|---|
 | `test_1_gold_standard.py` | Runs the model once (default settings) and compares 29 key variables with the gold standard. Allowed differences are set per variable at the top of the file. | 1 full run |
 | `test_2_sensitivity.py` (**slow**) | Small sensitivity analysis (TS = 50 / 400 kPa × crevasse width = 1 / 2 m). Compares % melt to bed, drained lakes and moulins with the gold standard; checks the % is 0–100 and that higher TS never gives more moulins. | 4 full runs |
-| `test_3_synthetic_dem.py` | Runs the model on 3 small artificial glaciers (slope; slope with flat area and lake; bumpy slope). Checks: no NaN, no negative water, moulins only on the ice. | 3 small runs |
+| `test_3_synthetic_dem.py` | Runs the model on 3 small artificial glaciers (slope; slope with flat area and lake; bumpy slope). Checks: no NaN, no negative water, moulins only on the ice. Saves a map per glacier (DEM, lakes, crevasses drained to the bed, drainage network) to `results/synthetic_dem_tests/`. | 3 small runs |
 
 ## Gold standard
 
